@@ -8,30 +8,34 @@ output:
 ---
 
 ```{r Set wd load and clean data, warning=FALSE}
+#Note to run the animation you will have to instal Imagemagik from http://www.imagemagick.org/script/binary-releases.php
+# when you install Imagemagik remember to select the "instal legacy files" option so convert.exe is included
+
 #Set working directory where this script and the raw excel file are saved 
 setwd("C:/Users/Dan/Documents/GitHub/MelbournePropertyPrices")
 
-#load the required packages
-library(ggmap)
-library(readr)
-library(ggplot2)
-library(knitr)
-library(dplyr)
-library(tidyr)
-library(readxl)
-library(stringr)
-#When installing Imagemagik from http://www.imagemagick.org/script/binary-releases.php
-# remember to select the "instal legacy files such as convert.exe" option:
-library(gganimate)
-library(animation)
+### Install/load required packages
+#List of R packages required for this analysis:
+required_packages <- c("ggmap", "readr", "ggplot2", "dplyr", "readxl","tidyr",
+                       "stringr", "gganimate","animation")
+#Install required_packages:
+new.packages <- required_packages[!(required_packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+#Load required_packages:
+lapply(required_packages, require, character.only = TRUE)
 
 #Set decimal points and disable scientific notation
 options(digits=3, scipen=999) 
 
-#Load Maps
+###Load Map
+# Can download using get_map function:
+# Melbourne <- get_map(location = 'Melbourne, Australia', zoom = 10, maptype="terrain")
+# But I saved it to workind directory so can load it and work offline:
 load("Melbourne.rda")
 
-#Load Apartment price data
+###Load Apartment price data
+# Got this data here http://www.dtpli.vic.gov.au/property-and-land-titles/property-information/property-prices ...
+# ...but saved it to workind directory so can load it and work offline
 suburb_Apartment_2015<-read_excel("suburb_unit_2015.xls", col_names=F, skip = 3) %>% 
             na.omit() %>%
             distinct() %>%
@@ -44,6 +48,7 @@ property_2005_2015<-read_excel("suburb_house_2015.xls", col_names=F, skip = 3) %
             bind_rows(suburb_Apartment_2015)
 rm(suburb_Apartment_2015)
 
+
 #rename the columns 
 names(property_2005_2015)<-c("suburb", 2005:2015, "Prelim 2016", "Change 2014-2015", "Change 2005-2015", "Growth PA 2005-2015","Property Type")
 
@@ -52,7 +57,8 @@ property_2005_2015[property_2005_2015 == 0] <- NA
 property_2005_2015[property_2005_2015 == "-"] <- NA
 
 
-#Read in the lat/long data
+## Read in the lat/long data:
+# Also saved it to workind directory so can load it and work offline:
 lat_long<-read_csv("Australian_Post_Codes_Lat_Lon.csv")  %>% 
     mutate(postcode=as.character(postcode)) %>%
     distinct() %>%
@@ -74,7 +80,8 @@ rm(VIC_lat_long)
 #melt from wide to long format
 property_2005_2015<-property_2005_2015 %>% 
     gather(key=Year, value=`Median Price ($)`, -suburb, -lon, -lat, -state, -`Property Type`, -`Change 2014-2015`, -`Change 2005-2015`, -`Growth PA 2005-2015`) %>%
-    mutate(`Median Price ($)`=as.numeric(`Median Price ($)`))
+    mutate(`Median Price ($)`=as.numeric(`Median Price ($)`)) #,
+           # `Change 2005-2015`=as.numeric(`Change 2005-2015`))
 
 
 ```
@@ -107,8 +114,11 @@ p1 <- p1 + theme(aspect.ratio=1) +
             plot.title = element_text(size = 14, face = "bold"),
             legend.position="right")  
 
-gg_animate(p1, 'output.gif', ani.width = 1000, ani.height = 600, interval = 0.75)
+#Save the .gif to working directory
+gg_animate(p1, 'Melbourne.gif', ani.width = 1000, ani.height = 600, interval = 0.75)
 
+#show the gif in the graphics pannel
+gg_animate(p1)
 
 
 ```
