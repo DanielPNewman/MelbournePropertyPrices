@@ -4,6 +4,8 @@ author: "Daniel P Newman"
 date: "29 September 2016"
 output: 
   html_document: 
+    fig_width: 9
+    fig_height: 5
     keep_md: yes
 ---
 
@@ -17,7 +19,7 @@ setwd("C:/Users/Dan/Documents/GitHub/MelbournePropertyPrices")
 ### Install/load required packages
 #List of R packages required for this analysis:
 required_packages <- c("ggmap", "readr", "ggplot2", "dplyr", "readxl","tidyr",
-                       "stringr", "gganimate","animation")
+                       "stringr", "gganimate","animation","ggiraph")
 #Install required_packages:
 new.packages <- required_packages[!(required_packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -50,7 +52,7 @@ rm(suburb_Apartment_2015)
 
 
 #rename the columns 
-names(property_2005_2015)<-c("suburb", 2005:2015, "Prelim 2016", "Change 2014-2015", "Change 2005-2015", "Growth PA 2005-2015","Property Type")
+names(property_2005_2015)<-c("suburb", 2005:2015, "Prelim 2016", "Change 2014-2015 (%)", "Change 2005-2015 (%)", "Growth (%) PA 2005-2015","Property Type")
 
 # assuming that "-" and "0" means data not available (NA), 
 property_2005_2015[property_2005_2015 == 0] <- NA
@@ -77,11 +79,19 @@ property_2005_2015<- full_join(property_2005_2015, VIC_lat_long,  by=c("suburb")
 rm(VIC_lat_long)
 
 
+property_2005_2015 <- property_2005_2015 %>%
+    mutate(`Change 2014-2015 (%)` = as.numeric(`Change 2014-2015 (%)`),
+           `Change 2005-2015 (%)` = as.numeric(`Change 2005-2015 (%)`),
+           `Growth (%) PA 2005-2015` = as.numeric(`Growth (%) PA 2005-2015`))
+    
+
 #melt from wide to long format
 property_2005_2015<-property_2005_2015 %>% 
-    gather(key=Year, value=`Median Price ($)`, -suburb, -lon, -lat, -state, -`Property Type`, -`Change 2014-2015`, -`Change 2005-2015`, -`Growth PA 2005-2015`) %>%
-    mutate(`Median Price ($)`=as.numeric(`Median Price ($)`)) #,
-           # `Change 2005-2015`=as.numeric(`Change 2005-2015`))
+    gather(key=Year, value=`Median Price ($)`, -suburb, -lon, -lat, -state, -`Property Type`, -`Change 2014-2015 (%)`, -`Change 2005-2015 (%)`, -`Growth (%) PA 2005-2015`) %>%
+    mutate(`Median Price ($)`=as.numeric(`Median Price ($)`))
+
+
+
 
 
 ```
@@ -115,13 +125,113 @@ p1 <- p1 + theme(aspect.ratio=1) +
             legend.position="right")  
 
 #Save the .gif to working directory
-gg_animate(p1, 'Melbourne.gif', ani.width = 1000, ani.height = 600, interval = 0.75)
+# gg_animate(p1, 'Melbourne.gif', ani.width = 1000, ani.height = 600, interval = 0.75)
 
 #show the gif in the graphics pannel
-gg_animate(p1)
+# gg_animate(p1)
 
 
 ```
 
 
+## Change Map
+```{r Change Map, warning=FALSE}
+p2<-ggmap(Melbourne, maprange=TRUE, extent = "normal", base_layer = ggplot(data = property_2005_2015, aes(x =lon, y= lat))) + 
+    geom_point_interactive(data = property_2005_2015, 
+                           aes(x =lon, y= lat, size= `Change 2005-2015 (%)`, 
+                               colour = `Change 2005-2015 (%)`, tooltip=suburb, data_id = suburb),
+                           alpha=.5) +
+    scale_colour_gradientn(colours=rainbow(5)) +
+    scale_radius (range = c(1, 6), trans = "identity", guide = "legend") +
+    facet_wrap(~`Property Type`) +
+    ggtitle("Change in Median Melbourne \n Property Prices ($) from 2005-2015 \n") +
+    theme(axis.title.x = element_blank(), 
+        axis.text.x  =  element_blank(),
+        axis.title.x = element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.text.y  =  element_blank(), 
+        axis.title.y = element_blank(),
+        axis.ticks.y=element_blank(),
+        legend.title = element_text(face="bold"),
+        legend.text = element_text(face = "bold"),
+        strip.text.x = element_text(face="bold"),
+        plot.title = element_text(face = "bold"))  
 
+
+ggiraph(code = {print(p2)}, zoom_max = 5,
+        tooltip_offx = 20, tooltip_offy = -10, 
+        hover_css = "fill:black;",
+        tooltip_opacity = 0.7)
+
+
+
+    
+# ggmap(Melbourne) + 
+#     geom_point(data = property_2005_2015, 
+#                aes(x =lon, y= lat, size=`Change ($)`, 
+#                    colour = `Change ($)`), alpha=.75, shape="$") +
+#         scale_colour_gradientn(colours=rainbow(5)) +
+#         scale_radius (range = c(1, 8), trans = "identity", guide = "legend") +
+#     facet_wrap(~`Property Type`) +
+#     ggtitle("Change in Median Melbourne Property Prices ($) from 2005-2015 \n")
+
+
+
+p3<-ggmap(Melbourne) + 
+    geom_point(data = property_2005_2015, 
+               aes(x =lon, y= lat, size=`Change 2005-2015 (%)`, 
+                   colour = `Change 2005-2015 (%)`), alpha=.5, shape="%") +
+        scale_colour_gradientn(colours=rainbow(5)) +
+        scale_radius (range = c(1, 6), trans = "identity", guide = "legend") +
+    facet_wrap(~`Property Type`) +
+    ggtitle("% Change in Median Melbourne \n Property Prices ($) from 2005-2016 \n")
+
+p3 <- p3 + theme(aspect.ratio=1) +
+        theme(axis.title.x = element_blank(), 
+            axis.text.x  =  element_blank(),
+            axis.title.x = element_blank(),
+            axis.ticks.x=element_blank(),
+            axis.text.y  =  element_blank(), 
+            axis.title.y = element_blank(),
+            axis.ticks.y=element_blank(),
+            legend.title = element_text(size=12, face="bold"),
+            legend.text = element_text(size = 12, face = "bold"),
+            strip.text.x = element_text(size=12, face="bold"),
+            plot.title = element_text(size = 14, face = "bold"),
+            legend.position="right") 
+p3
+
+
+
+
+
+
+p4<-ggmap(Melbourne) + 
+    geom_point(data = property_2005_2015, 
+               aes(x =lon, y= lat, size=`Growth (%) PA 2005-2015`, 
+                   colour = `Growth (%) PA 2005-2015`), alpha=.5) +
+        scale_colour_gradientn(colours=rainbow(5)) +
+        scale_radius (range = c(1, 6), trans = "identity", guide = "legend") +
+    facet_wrap(~`Property Type`) +
+    ggtitle("Growth (%) per annum in Median Melbourne \n Property Prices ($) from 2005-2016 \n")
+
+p4 <- p4 + theme(aspect.ratio=1) +
+        theme(axis.title.x = element_blank(), 
+            axis.text.x  =  element_blank(),
+            axis.title.x = element_blank(),
+            axis.ticks.x=element_blank(),
+            axis.text.y  =  element_blank(), 
+            axis.title.y = element_blank(),
+            axis.ticks.y=element_blank(),
+            legend.title = element_text(size=12, face="bold"),
+            legend.text = element_text(size = 12, face = "bold"),
+            strip.text.x = element_text(size=12, face="bold"),
+            plot.title = element_text(size = 14, face = "bold"),
+            legend.position="right") 
+p4
+
+
+
+
+
+```
