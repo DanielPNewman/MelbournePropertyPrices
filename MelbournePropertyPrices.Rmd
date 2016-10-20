@@ -125,16 +125,16 @@ p1 <- p1 + theme(aspect.ratio=1) +
             legend.position="right")  
 
 #Save the .gif to working directory
-# gg_animate(p1, 'Melbourne.gif', ani.width = 1000, ani.height = 600, interval = 0.75)
+gg_animate(p1, 'Melbourne.gif', ani.width = 1000, ani.height = 600, interval = 0.75)
 
 #show the gif in the graphics pannel
-# gg_animate(p1)
+gg_animate(p1)
 
 
 ```
 
 
-## Change Map
+## Plot % Change, and try use ggiraph to make mao interactive
 ```{r Change Map, warning=FALSE}
 p2<-ggmap(Melbourne, maprange=TRUE, extent = "normal", base_layer = ggplot(data = property_2005_2015, aes(x =lon, y= lat))) + 
     geom_point_interactive(data = property_2005_2015, 
