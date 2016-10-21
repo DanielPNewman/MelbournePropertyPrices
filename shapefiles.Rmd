@@ -1,0 +1,39 @@
+---
+title: "Untitled"
+author: "Daniel P Newman"
+date: "21 October 2016"
+output: html_document
+---
+
+
+
+```{r load packages}
+setwd("C:/Users/Dan/Documents/GitHub/MelbournePropertyPrices")
+
+
+required_packages <- c("ggplot2", "ggiraph", "ggthemes", "rgdal", "readxl", "maptools", "dplyr","mapproj","maps")
+
+#Install required_packages:
+new.packages <- required_packages[!(required_packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+#Load required_packages:
+lapply(required_packages, require, character.only = TRUE)
+
+
+shape <- readOGR(dsn = ".", "SSC_2011_AUST")
+Neighborhoods <- spTransform(shape, CRS("+proj=longlat +datum=WGS84"))
+
+Neighborhoods <- fortify(Neighborhoods)
+
+
+Australia <- get_map(location = 'Australia', zoom = 4, maptype="terrain")
+
+
+AustraliaMap <- Australia + geom_polygon(aes(x=long, y=lat, group=group), fill='grey', size=.2,color='green', data=Neighborhoods, alpha=0)
+AustraliaMap
+
+
+```
+
+
+

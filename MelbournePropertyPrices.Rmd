@@ -27,7 +27,7 @@ if(length(new.packages)) install.packages(new.packages)
 lapply(required_packages, require, character.only = TRUE)
 
 #Set decimal points and disable scientific notation
-options(digits=3, scipen=999) 
+options(digits=8, scipen=999) 
 
 ###Load Map
 # Can download using get_map function:
@@ -82,13 +82,15 @@ rm(VIC_lat_long)
 property_2005_2015 <- property_2005_2015 %>%
     mutate(`Change 2014-2015 (%)` = as.numeric(`Change 2014-2015 (%)`),
            `Change 2005-2015 (%)` = as.numeric(`Change 2005-2015 (%)`),
-           `Growth (%) PA 2005-2015` = as.numeric(`Growth (%) PA 2005-2015`))
+           `Growth (%) PA 2005-2015` = as.numeric(`Growth (%) PA 2005-2015`)) %>%
+     distinct()
     
 
 #melt from wide to long format
 property_2005_2015<-property_2005_2015 %>% 
     gather(key=Year, value=`Median Price ($)`, -suburb, -lon, -lat, -state, -`Property Type`, -`Change 2014-2015 (%)`, -`Change 2005-2015 (%)`, -`Growth (%) PA 2005-2015`) %>%
-    mutate(`Median Price ($)`=as.numeric(`Median Price ($)`))
+    mutate(`Median Price ($)`=as.numeric(`Median Price ($)`)) %>%
+    distinct()
 
 
 
@@ -136,11 +138,8 @@ gg_animate(p1)
 
 ## Plot % Change, and try use ggiraph to make mao interactive
 ```{r Change Map, warning=FALSE}
-p2<-ggmap(Melbourne, maprange=TRUE, extent = "normal", base_layer = ggplot(data = property_2005_2015, aes(x =lon, y= lat))) + 
-    geom_point_interactive(data = property_2005_2015, 
-                           aes(x =lon, y= lat, size= `Change 2005-2015 (%)`, 
-                               colour = `Change 2005-2015 (%)`, tooltip=suburb, data_id = suburb),
-                           alpha=.5) +
+p2<-ggmap(Melbourne, maprange=TRUE, extent = "panel", base_layer = ggplot(data = property_2005_2015, aes(x =lon, y= lat))) + 
+    geom_point_interactive(aes(size= `Change 2005-2015 (%)`, colour = `Change 2005-2015 (%)`, tooltip=suburb, data_id = suburb)) +
     scale_colour_gradientn(colours=rainbow(5)) +
     scale_radius (range = c(1, 6), trans = "identity", guide = "legend") +
     facet_wrap(~`Property Type`) +
@@ -165,7 +164,9 @@ ggiraph(code = {print(p2)}, zoom_max = 5,
 
 
 
-    
+
+
+
 # ggmap(Melbourne) + 
 #     geom_point(data = property_2005_2015, 
 #                aes(x =lon, y= lat, size=`Change ($)`, 
@@ -230,8 +231,6 @@ p4 <- p4 + theme(aspect.ratio=1) +
             legend.position="right") 
 p4
 
-
-
-
-
 ```
+
+
