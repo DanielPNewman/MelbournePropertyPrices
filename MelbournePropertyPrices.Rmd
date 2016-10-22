@@ -107,9 +107,9 @@ p1<-ggmap(Melbourne) +
                    colour = `Median Price ($)`), alpha=.75, shape="$") +
         # scale_colour_gradientn(colours=rainbow(5)) +
     scale_color_viridis() +
-        scale_radius (range = c(4, 14), trans = "identity", guide = "legend") +
+        scale_radius (range = c(5, 14), trans = "identity", guide = "legend") +
     facet_wrap(~`Property Type`) +
-    ggtitle("Median Melbourne Property Prices ($) from 2005-2016 \n")
+    ggtitle("Median Melbourne Property \n Prices ($) from 2005-2016 \n")
 
 p1 <- p1 + theme(aspect.ratio=1) +
         theme(axis.title.x = element_blank(),
@@ -119,14 +119,14 @@ p1 <- p1 + theme(aspect.ratio=1) +
             axis.text.y  =  element_blank(),
             axis.title.y = element_blank(),
             axis.ticks.y=element_blank(),
-            legend.title = element_text(size=12, face="bold"),
-            legend.text = element_text(size = 12, face = "bold"),
-            strip.text.x = element_text(size=12, face="bold"),
-            plot.title = element_text(size = 14, face = "bold"),
+            legend.title = element_text(size=14, face="bold"),
+            legend.text = element_text(size = 14, face = "bold"),
+            strip.text.x = element_text(size=14, face="bold"),
+            plot.title = element_text(size = 16, face = "bold"),
             legend.position="right")
 
 #Save the .gif to working directory
-gg_animate(p1, 'Melbourne.gif', ani.width = 1000, ani.height = 600, interval = 0.75)
+gg_animate(p1, 'Melbourne.gif', ani.width = 500, ani.height = 300, interval = 0.75)
 
 #show the gif in the graphics pannel
 gg_animate(p1)
