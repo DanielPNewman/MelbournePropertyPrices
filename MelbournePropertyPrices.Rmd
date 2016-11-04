@@ -126,10 +126,10 @@ p1 <- p1 + theme(aspect.ratio=1) +
             legend.position="right")
 
 #Save the .gif to working directory
-gg_animate(p1, 'Melbourne.gif', ani.width = 500, ani.height = 300, interval = 0.75)
-
-#show the gif in the graphics pannel
-gg_animate(p1)
+# gg_animate(p1, 'Melbourne.gif', ani.width = 500, ani.height = 300, interval = 0.75)
+# 
+# #show the gif in the graphics pannel
+# gg_animate(p1)
 
 
 ```
@@ -269,80 +269,5 @@ ggiraph(code = {print(p4)},
 ```
 
 
-##Static versions of the interactive maps above
 
-Notice the background of the static versions render properly.
-Hopfully I'll get the backgrounds rendering properly on the interactive plots above an update this blog post with it very soon!
-```{r interactive Map, warning=FALSE, echo=FALSE}
-
-ggmap(Melbourne) + 
-    geom_point(data = property_2005_2015, 
-               aes(x =lon, y= lat, 
-                   size=`Growth (%) PA 2005-2015`, 
-                   colour = `Growth (%) PA 2005-2015`), 
-               alpha=.75) +
-    scale_color_viridis() +
-    scale_radius (range = c(1, 5), trans = "identity", guide = "legend") +
-    facet_wrap(~`Property Type`) +
-    ggtitle("Growth per annum (%) in Median Melbourne \n Property Prices from 2005-2015 \n") +
-    theme(axis.title.x = element_blank(), 
-        axis.text.x  =  element_blank(),
-        axis.title.x = element_blank(),
-        axis.ticks.x=element_blank(),
-        axis.text.y  =  element_blank(), 
-        axis.title.y = element_blank(),
-        axis.ticks.y=element_blank(),
-        legend.title = element_text(face="bold"),
-        legend.text = element_text(face = "bold"),
-        strip.text.x = element_text(face="bold"),
-        plot.title = element_text(face = "bold"))
-
-
-ggmap(Melbourne) + 
-    geom_point(data = property_2005_2015, 
-               aes(x =lon, y= lat,
-                   size=`Change 2005-2015 (%)`, 
-                   colour = `Change 2005-2015 (%)`), 
-               alpha=.75) +
-    scale_color_viridis() +
-    scale_radius (range = c(1, 6), trans = "identity", guide = "legend") +
-    facet_wrap(~`Property Type`) +
-    ggtitle("Total change (%) in Median Melbourne \n Property Prices from 2005-2015 \n") +
-    theme(axis.title.x = element_blank(), 
-        axis.text.x  =  element_blank(),
-        axis.title.x = element_blank(),
-        axis.ticks.x=element_blank(),
-        axis.text.y  =  element_blank(), 
-        axis.title.y = element_blank(),
-        axis.ticks.y=element_blank(),
-        legend.title = element_text(face="bold"),
-        legend.text = element_text(face = "bold"),
-        strip.text.x = element_text(face="bold"),
-        plot.title = element_text(face = "bold"))
-
-
-
-ggmap(Melbourne) + 
-    geom_point(data = property_2005_2015, 
-               aes(x =lon, y= lat,
-                   size=`Change 2005-2015 ($)`, 
-                   colour = `Change 2005-2015 ($)`), 
-               alpha=.75) +
-    scale_color_viridis() +
-    scale_radius (range = c(2, 8), trans = "identity", guide = "legend") +
-    facet_wrap(~`Property Type`) +
-    ggtitle("Total change ($) in Median Melbourne \n Property Prices from 2005-2015 \n") +
-    theme(axis.title.x = element_blank(), 
-        axis.text.x  =  element_blank(),
-        axis.title.x = element_blank(),
-        axis.ticks.x=element_blank(),
-        axis.text.y  =  element_blank(), 
-        axis.title.y = element_blank(),
-        axis.ticks.y=element_blank(),
-        legend.title = element_text(face="bold"),
-        legend.text = element_text(face = "bold"),
-        strip.text.x = element_text(face="bold"),
-        plot.title = element_text(face = "bold"))
-
-```
 
