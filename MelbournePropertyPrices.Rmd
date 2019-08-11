@@ -7,16 +7,10 @@ output:
 ---
 
 ```{r Set wd load and clean data, warning=FALSE, , include=FALSE}
-#Note to run the animation you will have to instal Imagemagik from http://www.imagemagick.org/script/binary-releases.php
-# when you install Imagemagik remember to select the "instal legacy files" option so convert.exe is included
-
-#Set working directory where this script and the raw excel file are saved 
-setwd("C:/Users/Dan/Documents/GitHub/MelbournePropertyPrices")
-
 ### Install/load required packages
 #List of R packages required for this analysis:
 required_packages <- c("ggmap", "readr", "ggplot2", "dplyr", "readxl","tidyr",
-                       "stringr", "gganimate","animation","ggiraph", "viridis")
+                       "stringr", "gganimate", "ggiraph", "viridis", "gifski")
 #Install required_packages:
 new.packages <- required_packages[!(required_packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -35,155 +29,191 @@ load("Melbourne.rda")
 ###Load Apartment price data
 # Got this data here http://www.dtpli.vic.gov.au/property-and-land-titles/property-information/property-prices ...
 # ...but saved it to workind directory so can load it and work offline
-suburb_Apartment_2015<-read_excel("suburb_unit_2015.xls", col_names=F, skip = 3) %>% 
-            na.omit() %>%
-            distinct() %>%
-            mutate(`Property Type`="Apartment")
-#Load House Price Data and row bind it to Apartment price data 
-property_2005_2015<-read_excel("suburb_house_2015.xls", col_names=F, skip = 3) %>% 
-            na.omit() %>%
-            distinct() %>%
-            mutate(`Property Type`="House") %>%
-            bind_rows(suburb_Apartment_2015)
-rm(suburb_Apartment_2015)
+read_excel("suburb_unit_2015.xls", skip = 2) %>% 
+  na.omit() %>%
+  distinct() %>%
+  select(1:12) %>%
+  mutate(property_type="Apartment") -> to_bind
+read_excel("suburb_house_2015.xls", skip = 2) %>% 
+  na.omit() %>%
+  distinct() %>%
+  select(1:12) %>%
+  mutate(property_type="House") %>%
+  bind_rows(to_bind) -> property_2005_2015
+rm(to_bind)
 
+read_excel("Units-by-suburb-2008-2018.xls", skip = 1) %>%
+  na.omit() %>%
+  distinct() %>%
+  select(1:12) %>%
+  mutate(property_type="Apartment") -> to_bind
+read_excel("Houses-by-suburb-2008-2018.xls", skip = 1) %>%
+  na.omit() %>%
+  distinct() %>%
+  select(1:12) %>%
+  mutate(property_type="House") %>%
+  bind_rows(to_bind) %>%
+  rename(Locality = locality) -> property_2008_2018
+rm(to_bind)
 
-#rename the columns 
-names(property_2005_2015)<-c("suburb", 2005:2015, "Prelim 2016", "Change 2014-2015 (%)", "Change 2005-2015 (%)", "Growth (%) PA 2005-2015","Property Type")
-
-# assuming that "-" and "0" means data not available (NA), 
-property_2005_2015[property_2005_2015 == 0] <- NA
-property_2005_2015[property_2005_2015 == "-"] <- NA
-
+property_2005_2015 %>%
+  select(1:4, property_type) %>%
+  inner_join(property_2008_2018) %>%
+  distinct() %>%
+  gather(key=Year, value=median_price, -property_type, -`Locality`) %>%
+  mutate(Locality = str_trim(Locality)) -> property
+rm(property_2005_2015, property_2008_2018)
 
 ## Read in the lat/long data:
-# Also saved it to workind directory so can load it and work offline:
-lat_long<-read_csv("Australian_Post_Codes_Lat_Lon.csv")  %>% 
-    mutate(postcode=as.character(postcode)) %>%
-    distinct() %>%
-    select(-dc, -type)
-
-
+# from https://www.matthewproctor.com/australian_postcodes
+lat_long <- read_csv("australian_postcodes.csv") %>%
+  distinct() %>%
+  rename(state = State) %>%
+  select(-dc, -type, -status, -id, -postcode) %>%
+  rename(Locality = locality) %>%
+  mutate(lat = as.numeric(lat),
+         long = as.numeric(long)) %>%
+    filter(!is.na(long) & !is.na(lat)) %>%
+  mutate(Locality = str_trim(Locality))
 #create VIC only lat_long
-VIC_lat_long<- lat_long %>% 
+lat_long %>% 
     filter(state=="VIC") %>%
-    select(-postcode) %>%
+    select(-state) %>%
     distinct() %>% 
-    filter(suburb %in%  property_2005_2015$suburb)
+  filter(!is.na(long) & !is.na(lat)) -> VIC_lat_long
 
-#Merge VIC_lat_long into property_2005_2015
-property_2005_2015<- full_join(property_2005_2015, VIC_lat_long,  by=c("suburb"))
-rm(VIC_lat_long)
+#Merge VIC_lat_long into property
+property %>%
+  inner_join(VIC_lat_long) -> property
+rm(VIC_lat_long, lat_long)
 
+# change to numeric
+property %>%
+  mutate(Year = as.integer(Year)) %>%
+  mutate(median_price = as.numeric(median_price)) -> property
 
-property_2005_2015 <- property_2005_2015 %>%
-    mutate(`Change 2014-2015 (%)` = as.numeric(`Change 2014-2015 (%)`),
-           `Change 2005-2015 (%)` = as.numeric(`Change 2005-2015 (%)`),
-           `Growth (%) PA 2005-2015` = as.numeric(`Growth (%) PA 2005-2015`),
-           `Change 2005-2015 ($)` = as.numeric(`2015`)-as.numeric(`2005`)) %>%
-     distinct()
-    
+property %>%
+  group_by(Locality, property_type) %>%
+  arrange(Year) %>%
+  mutate(pct_change = (median_price/lag(median_price)) - 1) %>%
+  mutate(pct_change = ifelse(is.na(pct_change), 0, pct_change)) %>%
+  mutate(cum_pct_change = cumsum(pct_change)) -> property
 
-#melt from wide to long format
-property_2005_2015<-property_2005_2015 %>% 
-    gather(key=Year, value=`Median Price ($)`, -suburb, -lon, -lat, -state, -`Property Type`, -`Change 2014-2015 (%)`, -`Change 2005-2015 (%)`, -`Growth (%) PA 2005-2015`, -`Change 2005-2015 ($)`) %>%
-    mutate(`Median Price ($)`=as.numeric(`Median Price ($)`)) %>%
-    distinct()
+# remove Localities that don't have data for all years  
+property %>%
+  filter(!is.na(median_price)) %>%
+  group_by(Locality, property_type) %>%
+  summarise(n = n_distinct(Year)) %>%
+  filter(n < max(property$Year) - min(property$Year) + 1) -> to_remove
+property %>% 
+  filter(!(Locality %in% to_remove$Locality)) -> property
+rm(to_remove)
 
+# Calculate compount annual growth rate (CAGR)
+#CAGR = (End Value/Start Value)^(1/Years)-1.
+property %>%
+  filter(Year == min(property$Year)) %>%
+  rename(start_value = median_price) %>%
+  select(Locality, property_type, start_value) -> start_value
 
+property %>%
+  filter(Year == max(property$Year)) %>%
+  rename(end_value = median_price) %>%
+  select(Locality, property_type, end_value) -> end_value
 
+property %>%
+  left_join(start_value) %>%
+  left_join(end_value) %>%
+  mutate(CAGR = (end_value/start_value)^(1/(max(property$Year) - min(property$Year)))-1) %>%
+  mutate(`Annual Growth Rate (%)` = round(CAGR*100)) -> property
+rm(start_value, end_value)
 
+property %>%
+  mutate(`Change 2005-2018 (%)` = round(((end_value-start_value)/start_value)*100)) %>%
+  mutate(`Change 2005-2018 ($)` = end_value-start_value)-> property
 
+  
+  
 ```
-
-
 
 
 ```{r map, warning=FALSE, include=FALSE}
 
-p1<-ggmap(Melbourne) +
-    geom_point(data = property_2005_2015,
-               aes(x =lon, y= lat, frame = Year, size=`Median Price ($)`,
-                   colour = `Median Price ($)`), alpha=.75, shape="$") +
-        # scale_colour_gradientn(colours=rainbow(5)) +
-    scale_color_viridis() +
-        scale_radius (range = c(5, 14), trans = "identity", guide = "legend") +
-    facet_wrap(~`Property Type`) +
-    ggtitle("Median Melbourne Property \n Prices ($) from 2005-2016 \n")
-
-p1 <- p1 + theme(aspect.ratio=1) +
-        theme(axis.title.x = element_blank(),
-            axis.text.x  =  element_blank(),
-            axis.title.x = element_blank(),
-            axis.ticks.x=element_blank(),
-            axis.text.y  =  element_blank(),
-            axis.title.y = element_blank(),
-            axis.ticks.y=element_blank(),
-            legend.title = element_text(size=14, face="bold"),
-            legend.text = element_text(size = 14, face = "bold"),
-            strip.text.x = element_text(size=14, face="bold"),
-            plot.title = element_text(size = 16, face = "bold"),
-            legend.position="right")
-
-#Save the .gif to working directory
-# gg_animate(p1, 'Melbourne.gif', ani.width = 500, ani.height = 300, interval = 0.75)
-# 
-# #show the gif in the graphics pannel
-# gg_animate(p1)
-
-
+ggmap(Melbourne) +
+    geom_point(data = property,
+               aes(x =long, y= lat, size=median_price,
+                colour = median_price), alpha=.75, shape="$") +
+  scale_color_viridis() +
+  scale_radius(range = c(5, 14), trans = "identity", guide = "legend") +
+  facet_wrap(~property_type) +
+  theme(aspect.ratio=1) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x  =  element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y  =  element_blank(),
+        axis.title.y = element_blank(),
+        axis.ticks.y=element_blank(),
+        legend.title = element_text(size=12, face="bold"),
+        legend.text = element_text(size = 12, face = "bold"),
+        strip.text.x = element_text(size=12, face="bold"),
+        plot.title = element_text(size = 16, face = "bold"),
+        legend.position="right") +
+        transition_time(Year) +
+  labs(title = 'Median Melbourne Property Prices\n Year: {frame_time}')
+anim_save("test.gif")
 ```
 
 
 ##-Scroll your mouse to zoom in and out on the maps
-##-Hover over a point to see more information about that suburb
-##-Click on a suburb to go to a new google maps window/tab
+##-Hover over a point to see more information about that Locality
+##-Click on a Locality to go to a new google maps window/tab
 
 ```{r still Map, warning=FALSE, echo=FALSE}
 #####create column with text to appear with 'tooltip' mouse hover###
-#Growth (%) PA 2005-2015`
-property_2005_2015$tooltip_point1 <- paste0(
-    "<b>", property_2005_2015$suburb, "</b>",
+#`Annual Growth Rate (%)``
+property$tooltip_point1 <- paste0(
+    "<b>", property$Locality, "</b>",
     "<br>Growth per annum:",
-    "<br>",property_2005_2015$`Growth (%) PA 2005-2015`,"%",
+    "<br>",round(property$`Annual Growth Rate (%)`),"%",
     "</span></div>")   
-#`Change 2005-2015 (%)`
-property_2005_2015$tooltip_point2 <- paste0(
-    "<b>", property_2005_2015$suburb, "</b>",
+#`Change 2005-2018 (%)`
+property$tooltip_point2 <- paste0(
+    "<b>", property$Locality, "</b>",
     "<br>Change in Median Price:",
-    "<br>",property_2005_2015$`Change 2005-2015 (%)`,"%",
+    "<br>",property$`Change 2005-2018 (%)`,"%",
     "</span></div>")   
 
-property_2005_2015$tooltip_point3 <- paste0(
-    "<b>", property_2005_2015$suburb, "</b>",
+property$tooltip_point3 <- paste0(
+    "<b>", property$Locality, "</b>",
     "<br>Change in Median Price:",
-    "<br>$",property_2005_2015$`Change 2005-2015 ($)`,
+    "<br>$",property$`Change 2005-2018 ($)`,
     "</span></div>")   
 
 
 # create an 'onclick' column
-property_2005_2015<-property_2005_2015 %>% mutate(google_map_lookup = paste(suburb, state, "Australia", sep=", "))
-property_2005_2015$onclick <- sprintf("window.open(\"%s%s\")",
-  "https://www.google.com.au/maps/place/", as.character(property_2005_2015$google_map_lookup))
+property %>% 
+  mutate(google_map_lookup = paste(Locality, "Australia", sep=", ")) -> property
+
+property$onclick <- sprintf("window.open(\"%s%s\")",
+  "https://www.google.com.au/maps/place/", as.character(property$google_map_lookup))
 
 
 
 #Make plots
 p2<-ggmap(Melbourne) + 
-    geom_point_interactive(data = property_2005_2015,
-                           aes(x =lon, y= lat,
-                               size= `Growth (%) PA 2005-2015`, 
-                               colour = `Growth (%) PA 2005-2015`, 
+    ggiraph::geom_point_interactive(data = property,
+                           aes(x =long, y= lat,
+                               size= `Annual Growth Rate (%)`, 
+                               colour = `Annual Growth Rate (%)`, 
                                tooltip=tooltip_point1, 
                                data_id = tooltip_point1,
                                onclick = onclick)) +
     scale_color_viridis() +
     scale_radius (range = c(1, 5), trans = "identity", guide = "legend") +
-    facet_wrap(~`Property Type`) +
-    ggtitle("Growth per annum in Median Melbourne \n Property Prices from 2005-2015 \n") +
+    facet_wrap(~property_type) +
+    ggtitle("Growth per annum in Median Melbourne \n Property Prices from 2005-2018 \n") +
     theme(axis.title.x = element_blank(), 
         axis.text.x  =  element_blank(),
-        axis.title.x = element_blank(),
         axis.ticks.x=element_blank(),
         axis.text.y  =  element_blank(), 
         axis.title.y = element_blank(),
@@ -192,30 +222,29 @@ p2<-ggmap(Melbourne) +
         legend.text = element_text(face = "bold"),
         strip.text.x = element_text(face="bold"),
         plot.title = element_text(face = "bold"))  
-ggiraph(code = {print(p2)}, 
-        zoom_max = 5,
-        width_svg = 8, height_svg = 6,
-        tooltip_offx = 20, tooltip_offy = -10, 
-        hover_css = "fill:black;",
-        tooltip_opacity = 0.7)
-
+# ggiraph(code = {print(p2)}, 
+#         zoom_max = 5,
+#         width_svg = 8, height_svg = 6,
+#         tooltip_offx = 20, tooltip_offy = -10, 
+#         hover_css = "fill:black;",
+#         tooltip_opacity = 0.7)
+girafe(code = print(p2), width_svg = 8, height_svg = 5)
 
 
 p3<-ggmap(Melbourne) + 
-    geom_point_interactive(data = property_2005_2015,
-                           aes(x =lon, y= lat,
-                               size= `Change 2005-2015 (%)`, 
-                               colour = `Change 2005-2015 (%)`, 
+    ggiraph::geom_point_interactive(data = property,
+                           aes(x =long, y= lat,
+                               size= `Change 2005-2018 (%)`, 
+                               colour = `Change 2005-2018 (%)`, 
                                tooltip=tooltip_point2, 
                                data_id = tooltip_point2,
                                onclick = onclick)) +
     scale_color_viridis() +
     scale_radius (range = c(1, 6), trans = "identity", guide = "legend") +
-    facet_wrap(~`Property Type`) +
-    ggtitle("Total change (%) in Median Melbourne \n Property Prices from 2005-2015 \n") +
+    facet_wrap(~property_type) +
+    ggtitle("Total change (%) in Median Melbourne \n Property Prices from 2005-2018 \n") +
     theme(axis.title.x = element_blank(), 
         axis.text.x  =  element_blank(),
-        axis.title.x = element_blank(),
         axis.ticks.x=element_blank(),
         axis.text.y  =  element_blank(), 
         axis.title.y = element_blank(),
@@ -224,30 +253,29 @@ p3<-ggmap(Melbourne) +
         legend.text = element_text(face = "bold"),
         strip.text.x = element_text(face="bold"),
         plot.title = element_text(face = "bold"))  
-ggiraph(code = {print(p3)}, 
-        zoom_max = 5,
-        width_svg = 8, height_svg = 6,
-        tooltip_offx = 20, tooltip_offy = -10, 
-        hover_css = "fill:black;",
-        tooltip_opacity = 0.7)
-
+# ggiraph(code = {print(p3)}, 
+#         zoom_max = 5,
+#         width_svg = 8, height_svg = 6,
+#         tooltip_offx = 20, tooltip_offy = -10, 
+#         hover_css = "fill:black;",
+#         tooltip_opacity = 0.7)
+girafe(code = print(p3), width_svg = 8, height_svg = 5)
 
 
 p4<-ggmap(Melbourne) + 
-    geom_point_interactive(data=property_2005_2015, 
-                                aes(x =lon, y= lat,
-                                size= `Change 2005-2015 ($)`, 
-                                colour = `Change 2005-2015 ($)`, 
+    ggiraph::geom_point_interactive(data=property, 
+                                aes(x =long, y= lat,
+                                size= `Change 2005-2018 ($)`, 
+                                colour = `Change 2005-2018 ($)`, 
                                 tooltip=tooltip_point3, 
                                 data_id = tooltip_point3,
                                 onclick = onclick)) +
     scale_color_viridis() +
     scale_radius (range = c(2, 8), trans = "identity", guide = "legend") +
-    facet_wrap(~`Property Type`) +
-    ggtitle("Total change ($) in Median Melbourne \n Property Prices from 2005-2015 \n") +
+    facet_wrap(~property_type) +
+    ggtitle("Total change ($) in Median Melbourne \n Property Prices from 2005-2018 \n") +
     theme(axis.title.x = element_blank(), 
         axis.text.x  =  element_blank(),
-        axis.title.x = element_blank(),
         axis.ticks.x=element_blank(),
         axis.text.y  =  element_blank(), 
         axis.title.y = element_blank(),
@@ -256,16 +284,44 @@ p4<-ggmap(Melbourne) +
         legend.text = element_text(face = "bold"),
         strip.text.x = element_text(face="bold"),
         plot.title = element_text(face = "bold"))  
-ggiraph(code = {print(p4)}, 
-        zoom_max = 5,
-        width_svg = 8, height_svg = 6,
-        tooltip_offx = 20, tooltip_offy = -10, 
-        hover_css = "fill:black;",
-        tooltip_opacity = 0.7)
+# ggiraph(code = {print(p4)}, 
+#         zoom_max = 5,
+#         width_svg = 8, height_svg = 6,
+#         tooltip_offx = 20, tooltip_offy = -10, 
+#         hover_css = "fill:black;",
+#         tooltip_opacity = 0.7)
+girafe(code = print(p4), width_svg = 8, height_svg = 5)
 
 
+p5 <- property %>%
+        ggplot() +
+        ggiraph::geom_line_interactive(aes(x = Year,
+                                  y = cum_pct_change,
+                                  group = Locality,
+                                  colour = Locality,
+                                  tooltip=tooltip_point2,
+                                  data_id = tooltip_point2,
+                                  onclick = onclick), alpha = .5) +
+        facet_wrap(~property_type) +
+        theme(legend.position = "none",
+        axis.text.x=element_text(angle=60, hjust=1)) +
+  scale_x_continuous(breaks = c(min(property$Year):max(property$Year)))
+girafe(code = print(p5), width_svg = 8, height_svg = 5)
 
-  
+# normal plot
+property %>%
+ ggplot() +
+    geom_line(aes(x = Year, 
+                  y = cum_pct_change, 
+                  group = Locality, 
+                  colour = `Change 2005-2018 (%)`), alpha = .1) +
+  geom_smooth(aes(x = Year, 
+                  y = cum_pct_change), size = 2) +
+  facet_wrap(~property_type) +
+  theme(legend.position = "none",
+        axis.text.x=element_text(angle=60, hjust=1)) +
+  scale_x_continuous(breaks = c(min(property$Year):max(property$Year)))
+   
 ```
 
 
